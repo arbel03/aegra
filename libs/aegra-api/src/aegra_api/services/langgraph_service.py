@@ -424,7 +424,26 @@ class LangGraphService:
             raise ValueError(f"Graph file not found: {file_path}")
 
         # Dynamic import of graph module
-        spec = importlib.util.spec_from_file_location(f"graphs.{graph_id}", str(file_path.resolve()))
+        # Derive module name from file path relative to sys.path so that
+        # relative imports (from .foo import bar) resolve correctly against
+        # the real package structure instead of the synthetic "graphs." prefix.
+        module_name: str | None = None
+        resolved = file_path.resolve()
+        for search_path in sys.path:
+            try:
+                rel = resolved.relative_to(Path(search_path).resolve())
+                # Convert e.g. agent/agent.py -> agent.agent
+                parts = list(rel.with_suffix("").parts)
+                if parts:
+                    module_name = ".".join(parts)
+                    break
+            except ValueError:
+                continue
+
+        if module_name is None:
+            module_name = f"graphs.{graph_id}"
+
+        spec = importlib.util.spec_from_file_location(module_name, str(resolved))
         if spec is None or spec.loader is None:
             raise ValueError(f"Failed to load graph module: {file_path}")
 
