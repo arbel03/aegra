@@ -143,15 +143,31 @@ async def create_thread(
 
     thread_id = request.thread_id or str(uuid4())
 
+    # Resolve graph_id from top-level field or metadata
+    resolved_graph_id = (
+        request.graph_id
+        or (request.metadata or {}).get("graph_id")
+        or (request.metadata or {}).get("graphId")
+    )
+
     if request.thread_id:
         existing_stmt = select(ThreadORM).where(
             ThreadORM.thread_id == thread_id,
-            ThreadORM.user_id == user.identity,
         )
         existing = await session.scalar(existing_stmt)
 
         if existing:
+            if existing.user_id != user.identity:
+                raise HTTPException(409, f"Thread '{thread_id}' already exists")
             if request.if_exists == "do_nothing":
+                # Backfill graph_id if missing on existing thread
+                existing_meta = existing.metadata_json or {}
+                if resolved_graph_id and not existing_meta.get("graph_id"):
+                    updated_meta = {**existing_meta, "graph_id": resolved_graph_id}
+                    existing.metadata_json = updated_meta
+                    existing.updated_at = datetime.now(UTC)
+                    await session.commit()
+                    await session.refresh(existing)
                 return _serialize_thread(existing)
             else:
                 raise HTTPException(409, f"Thread '{thread_id}' already exists")
@@ -160,8 +176,8 @@ async def create_thread(
     metadata.update(
         {
             "owner": user.identity,
-            "assistant_id": None,
-            "graph_id": None,
+            "assistant_id": metadata.get("assistant_id"),
+            "graph_id": resolved_graph_id,
             "thread_name": metadata.get("thread_name", ""),
         }
     )

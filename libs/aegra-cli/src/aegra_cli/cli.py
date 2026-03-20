@@ -211,6 +211,13 @@ def ensure_docker_files(project_path: Path, slug: str) -> Path:
     type=click.Path(exists=True, path_type=Path),
     help="Path to docker-compose.yml file for PostgreSQL.",
 )
+@click.option(
+    "--reload-dir",
+    "reload_dirs",
+    multiple=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Extra directories for uvicorn to watch for reload (repeatable).",
+)
 @click.pass_context
 def dev(
     ctx: click.Context,
@@ -221,6 +228,7 @@ def dev(
     env_file: Path | None,
     no_db_check: bool,
     compose_file: Path | None,
+    reload_dirs: tuple[Path, ...],
 ) -> None:
     """Run the development server with hot reload.
 
@@ -344,6 +352,9 @@ def dev(
         str(port),
         "--reload",
     ]
+
+    for rd in reload_dirs:
+        cmd.extend(["--reload-dir", str(rd)])
 
     process = None
     try:

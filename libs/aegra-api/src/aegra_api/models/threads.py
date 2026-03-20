@@ -25,6 +25,11 @@ class ThreadCreate(BaseModel):
         alias="ifExists",
         description="Behavior when thread exists: 'raise' (default) or 'do_nothing'",
     )
+    graph_id: str | None = Field(
+        None,
+        alias="graphId",
+        description="Graph ID to associate with the thread",
+    )
 
 
 class ThreadUpdate(BaseModel):
