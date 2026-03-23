@@ -312,6 +312,25 @@ async def create_and_stream_run(
     after the client disconnects (default is `"cancel"`). Use `stream_mode`
     to control which event types are emitted.
     """
+    # Authorization check (create_run action on threads resource)
+    ctx = build_auth_context(user, "threads", "create_run")
+    value = {**request.model_dump(), "thread_id": thread_id}
+    filters = await handle_event(ctx, value)
+
+    # If handler modified config/context, update request
+    if filters:
+        if "config" in filters and isinstance(filters["config"], dict):
+            request.config = {**(request.config or {}), **filters["config"]}
+        if "context" in filters and isinstance(filters["context"], dict):
+            request.context = {**(request.context or {}), **filters["context"]}
+    else:
+        value_config = value.get("config")
+        if isinstance(value_config, dict):
+            request.config = {**(request.config or {}), **value_config}
+
+        value_context = value.get("context")
+        if isinstance(value_context, dict):
+            request.context = {**(request.context or {}), **value_context}
 
     # Validate resume command requirements early
     await _validate_resume_command(session, thread_id, request.command)
